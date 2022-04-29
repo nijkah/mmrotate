@@ -10,7 +10,7 @@ from .transforms import (bbox_mapping_back, gaussian2bbox, gt2gaussian,
                          hbb2obb, norm_angle, obb2hbb, obb2poly, obb2poly_np,
                          obb2xyxy, poly2obb, poly2obb_np, rbbox2result,
                          rbbox2roi)
-from .utils import GaussianMixture
+from .utils import GaussianMixture, xy_wh_r_2_xy_sigma
 
 __all__ = [
     'RBboxOverlaps2D', 'rbbox_overlaps', 'rbbox2result', 'rbbox2roi',
@@ -20,5 +20,5 @@ __all__ = [
     'GVRatioCoder', 'ConvexAssigner', 'MaxConvexIoUAssigner', 'SASAssigner',
     'ATSSKldAssigner', 'gaussian2bbox', 'gt2gaussian', 'GaussianMixture',
     'build_assigner', 'build_bbox_coder', 'build_sampler', 'bbox_mapping_back',
-    'CSLCoder', 'ATSSObbAssigner'
+    'CSLCoder', 'ATSSObbAssigner', 'xy_wh_r_2_xy_sigma'
 ]
