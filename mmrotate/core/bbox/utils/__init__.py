@@ -1,4 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+from .gaussian_distribution import (xy_stddev_pearson_2_xy_sigma,
+                                    xy_wh_r_2_xy_sigma)
 from .gmm import GaussianMixture
 
-__all__ = ['GaussianMixture']
+__all__ = [
+    'GaussianMixture', 'xy_stddev_pearson_2_xy_sigma', 'xy_wh_r_2_xy_sigma'
+]
