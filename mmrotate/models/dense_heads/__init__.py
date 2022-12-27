@@ -10,6 +10,8 @@ from .oriented_rpn_head import OrientedRPNHead
 from .rotated_anchor_free_head import RotatedAnchorFreeHead
 from .rotated_anchor_head import RotatedAnchorHead
 from .rotated_atss_head import RotatedATSSHead
+from .rotated_deformable_detr_head import RotatedDeformableDETRHead
+from .rotated_detr_head import RotatedDETRHead
 from .rotated_fcos_head import RotatedFCOSHead
 from .rotated_reppoints_head import RotatedRepPointsHead
 from .rotated_retina_head import RotatedRetinaHead
@@ -18,10 +20,23 @@ from .rotated_rpn_head import RotatedRPNHead
 from .sam_reppoints_head import SAMRepPointsHead
 
 __all__ = [
-    'RotatedAnchorHead', 'RotatedRetinaHead', 'RotatedRPNHead',
-    'OrientedRPNHead', 'RotatedRetinaRefineHead', 'ODMRefineHead',
-    'KFIoURRetinaHead', 'KFIoURRetinaRefineHead', 'KFIoUODMRefineHead',
-    'RotatedRepPointsHead', 'SAMRepPointsHead', 'CSLRRetinaHead',
-    'RotatedATSSHead', 'RotatedAnchorFreeHead', 'RotatedFCOSHead',
-    'CSLRFCOSHead', 'OrientedRepPointsHead'
+    'RotatedAnchorHead',
+    'RotatedRetinaHead',
+    'RotatedRPNHead',
+    'OrientedRPNHead',
+    'RotatedRetinaRefineHead',
+    'ODMRefineHead',
+    'KFIoURRetinaHead',
+    'KFIoURRetinaRefineHead',
+    'KFIoUODMRefineHead',
+    'RotatedRepPointsHead',
+    'SAMRepPointsHead',
+    'CSLRRetinaHead',
+    'RotatedATSSHead',
+    'RotatedAnchorFreeHead',
+    'RotatedFCOSHead',
+    'CSLRFCOSHead',
+    'OrientedRepPointsHead',
+    'RotatedDETRHead',
+    'RotatedDeformableDETRHead',
 ]
