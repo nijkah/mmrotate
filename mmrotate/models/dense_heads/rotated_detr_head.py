@@ -1,17 +1,18 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import Conv2d, Linear, build_activation_layer
 from mmcv.cnn.bricks.transformer import FFN, build_positional_encoding
 from mmcv.runner import force_fp32
-
 from mmdet.core import (bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh,
                         build_assigner, build_sampler, multi_apply,
                         reduce_mean)
-from mmdet.models.utils import build_transformer
-from ..builder import ROTATED_HEADS
 from mmdet.models.dense_heads import DETRHead
+from mmdet.models.utils import build_transformer
+
+from ..builder import ROTATED_HEADS
 
 
 @ROTATED_HEADS.register_module()
@@ -64,6 +65,46 @@ class RotatedDETRHead(DETRHead):
             add_residual=False)
         self.fc_reg = Linear(self.embed_dims, self.reg_dim)
         self.query_embedding = nn.Embedding(self.num_query, self.embed_dims)
+
+    def forward_single(self, x, img_metas):
+        """"Forward function for a single feature level.
+        Args:
+            x (Tensor): Input feature from backbone's single stage, shape
+                [bs, c, h, w].
+            img_metas (list[dict]): List of image information.
+        Returns:
+            all_cls_scores (Tensor): Outputs from the classification head,
+                shape [nb_dec, bs, num_query, cls_out_channels]. Note
+                cls_out_channels should includes background.
+            all_bbox_preds (Tensor): Sigmoid outputs from the regression
+                head with normalized coordinate format (cx, cy, w, h).
+                Shape [nb_dec, bs, num_query, 4].
+        """
+        # construct binary masks which used for the transformer.
+        # NOTE following the official DETR repo, non-zero values representing
+        # ignored positions, while zero values means valid positions.
+        batch_size = x.size(0)
+        input_img_h, input_img_w = img_metas[0]['batch_input_shape']
+        masks = x.new_ones((batch_size, input_img_h, input_img_w))
+        for img_id in range(batch_size):
+            img_h, img_w, _ = img_metas[img_id]['img_shape']
+            masks[img_id, :img_h, :img_w] = 0
+
+        x = self.input_proj(x)
+        # interpolate masks to have the same spatial shape with x
+        masks = F.interpolate(
+            masks.unsqueeze(1), size=x.shape[-2:]).to(torch.bool).squeeze(1)
+        # position encoding
+        pos_embed = self.positional_encoding(masks)  # [bs, embed_dim, h, w]
+        # outs_dec: [nb_dec, bs, num_query, embed_dim]
+        outs_dec, _ = self.transformer(x, masks, self.query_embedding.weight,
+                                       pos_embed)
+
+        all_cls_scores = self.fc_cls(outs_dec)
+        all_bbox_preds = self.fc_reg(self.activate(self.reg_ffn(outs_dec)))
+        # do not apply sigmoid on angle
+        all_bbox_preds[:, :4] = all_bbox_preds[:, :4].sigmoid()
+        return all_cls_scores, all_bbox_preds
 
     def loss_single(self,
                     cls_scores,
@@ -128,8 +169,8 @@ class RotatedDETRHead(DETRHead):
         factors = []
         for img_meta, bbox_pred in zip(img_metas, bbox_preds):
             img_h, img_w, _ = img_meta['img_shape']
-            factor = bbox_pred.new_tensor([img_w, img_h, img_w,
-                                           img_h, 1]).unsqueeze(0).repeat(
+            factor = bbox_pred.new_tensor([img_w, img_h, img_w, img_h,
+                                           1]).unsqueeze(0).repeat(
                                                bbox_pred.size(0), 1)
             factors.append(factor)
         factors = torch.cat(factors, 0)
@@ -155,7 +196,6 @@ class RotatedDETRHead(DETRHead):
         loss_bbox = self.loss_bbox(
             bbox_preds, bbox_targets, bbox_weights, avg_factor=num_total_pos)
         return loss_cls, loss_bbox, loss_iou
-
 
     def _get_target_single(self,
                            cls_score,
@@ -219,8 +259,8 @@ class RotatedDETRHead(DETRHead):
         # DETR regress the relative position of boxes (cxcywh) in the image.
         # Thus the learning target should be normalized by the image size, also
         # the box format should be converted from defaultly x1y1x2y2 to cxcywh.
-        factor = bbox_pred.new_tensor([img_w, img_h, img_w,
-                                       img_h, 1]).unsqueeze(0)
+        factor = bbox_pred.new_tensor([img_w, img_h, img_w, img_h,
+                                       1]).unsqueeze(0)
         # skip because empty pos_gt_bboxes has a shape of (0, 4)
         if gt_bboxes.numel() == 0:
             pos_gt_bboxes_targets = gt_bboxes
@@ -359,12 +399,15 @@ class RotatedDETRHead(DETRHead):
             bbox_pred = bbox_pred[bbox_index]
             det_labels = det_labels[bbox_index]
 
-        det_bboxes = bbox_cxcywh_to_xyxy(bbox_pred)
-        det_bboxes[:, 0::2] = det_bboxes[:, 0::2] * img_shape[1]
-        det_bboxes[:, 1::2] = det_bboxes[:, 1::2] * img_shape[0]
-        det_bboxes[:, 0::2].clamp_(min=0, max=img_shape[1])
-        det_bboxes[:, 1::2].clamp_(min=0, max=img_shape[0])
+        # det_bboxes = bbox_cxcywh_to_xyxy(bbox_pred)
+        det_bboxes = bbox_pred
+        det_bboxes[:, 0:4:2] = det_bboxes[:, 0:4:2] * img_shape[1]
+        det_bboxes[:, 1:4:2] = det_bboxes[:, 1:4:2] * img_shape[0]
+        det_bboxes[:, 0:4:2].clamp_(min=0, max=img_shape[1])
+        det_bboxes[:, 1:4:2].clamp_(min=0, max=img_shape[0])
         if rescale:
+            if scale_factor.shape[0] == 4:
+                scale_factor = np.append(scale_factor, 1.)
             det_bboxes /= det_bboxes.new_tensor(scale_factor)
         det_bboxes = torch.cat((det_bboxes, scores.unsqueeze(1)), -1)
 
@@ -416,7 +459,7 @@ class RotatedDETRHead(DETRHead):
                     normalized coordinate format (cx, cy, w, h) and shape \
                     [nb_dec, bs, num_query, 4].
         """
-        raise NotImplementedError("ONNX is not supported yet.")
+        raise NotImplementedError('ONNX is not supported yet.')
 
     def onnx_export(self, all_cls_scores_list, all_bbox_preds_list, img_metas):
         """Transform network outputs into bbox predictions, with ONNX
@@ -436,4 +479,4 @@ class RotatedDETRHead(DETRHead):
             tuple[Tensor, Tensor]: dets of shape [N, num_det, 5]
                 and class labels of shape [N, num_det].
         """
-        raise NotImplementedError("ONNX is not supported yet.")
+        raise NotImplementedError('ONNX is not supported yet.')

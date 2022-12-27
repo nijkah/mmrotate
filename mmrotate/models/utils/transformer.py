@@ -2,8 +2,8 @@
 import torch
 from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER_SEQUENCE
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence
-
 from mmdet.models.utils.transformer import inverse_sigmoid
+
 
 @TRANSFORMER_LAYER_SEQUENCE.register_module()
 class RotatedDeformableDetrTransformerDecoder(TransformerLayerSequence):
@@ -17,7 +17,8 @@ class RotatedDeformableDetrTransformerDecoder(TransformerLayerSequence):
 
     def __init__(self, *args, return_intermediate=False, **kwargs):
 
-        super(RotatedDeformableDetrTransformerDecoder, self).__init__(*args, **kwargs)
+        super(RotatedDeformableDetrTransformerDecoder,
+              self).__init__(*args, **kwargs)
         self.return_intermediate = return_intermediate
 
     def forward(self,

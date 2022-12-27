@@ -1,12 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn.functional as F
-
 from mmdet.core.bbox.iou_calculators import bbox_overlaps
-from mmdet.core.bbox.transforms import bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh
 from mmdet.core.bbox.match_costs.builder import MATCH_COST
-from mmrotate.core.bbox.iou_calculators.gaussian_dist_calculator import gwd_overlaps, xy_wh_r_2_xy_sigma
+from mmdet.core.bbox.transforms import bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh
 
+from mmrotate.core.bbox.iou_calculators.gaussian_dist_calculator import (
+    gwd_overlaps, xy_wh_r_2_xy_sigma)
 
 
 @MATCH_COST.register_module()
@@ -44,6 +44,7 @@ class RBoxL1Cost:
         """
         bbox_cost = torch.cdist(bbox_pred, gt_bboxes, p=1)
         return bbox_cost * self.weight
+
 
 @MATCH_COST.register_module()
 class GWDCost:

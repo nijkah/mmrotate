@@ -4,6 +4,7 @@ import torch
 
 from .builder import IOU_CALCULATORS
 
+
 def xy_wh_r_2_xy_sigma(xywhr):
     """Convert oriented bounding box to 2-D Gaussian distribution.
 
@@ -34,6 +35,7 @@ def xy_wh_r_2_xy_sigma(xywhr):
 
 def xyxy_2_xy_sigma(xyxy):
     """Convert horizontal bounding box to 2-D Gaussian distribution.
+
     Args:
         bbox (torch.Tensor): bboxes(xyxy) with shape (N, 4).
     Returns:
@@ -55,7 +57,9 @@ def xyxy_2_xy_sigma(xyxy):
 def kld(bbox1, bbox2):
     """Kullback-Leibler Divergence Edited from 'kld_loss', 'kld_loss' must have
     the Tensors inputs as same shape and have an output as scalar by
-    decorator(weighted_loss) for calculating loss. Edited function 'kld',
+    decorator(weighted_loss) for calculating loss.
+
+    Edited function 'kld',
     Calculate kld for each pair for assign.
     Args:
         bbox1 (Tuple[torch.Tensor]): (xy (n,2), sigma(n,2,2))
@@ -94,6 +98,7 @@ def kld(bbox1, bbox2):
 
 def gwd_overlaps(pred, target):
     """Gaussian Wasserstein distance.
+
     Edited from 'gwd_loss',
     'gwd_loss' must have the Tensors inputs as same shape and
     have an output as scalar by decorator(weighted_loss) for calculating loss.
@@ -174,6 +179,7 @@ class GDOverlaps2D:
 
     def __call__(self, bboxes1, bboxes2):
         """Calculate IoU between 2D bboxes.
+
         Edited method from https://arxiv.org/abs/2110.13389
             1. We do not normalize kld or gwd because
                 it will be used with ATSS.

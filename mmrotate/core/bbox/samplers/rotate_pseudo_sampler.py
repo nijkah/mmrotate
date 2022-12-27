@@ -5,6 +5,7 @@ from mmdet.core.bbox.samplers.sampling_result import SamplingResult
 
 from ..builder import ROTATED_BBOX_SAMPLERS
 
+
 @ROTATED_BBOX_SAMPLERS.register_module()
 class RPseudoSampler(BaseSampler):
     """A pseudo sampler that does not do sampling actually."""
@@ -22,6 +23,7 @@ class RPseudoSampler(BaseSampler):
 
     def sample(self, assign_result, bboxes, gt_bboxes, *args, **kwargs):
         """Directly returns the positive and negative indices  of samples.
+
         Args:
             assign_result (:obj:`AssignResult`): Assigned results
             bboxes (torch.Tensor): Bounding boxes

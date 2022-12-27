@@ -1,6 +1,4 @@
-_base_ = [
-    '../_base_/datasets/dotav1.py', '../_base_/default_runtime.py'
-]
+_base_ = ['../_base_/datasets/dotav1.py', '../_base_/default_runtime.py']
 
 angle_version = 'le90'
 
@@ -27,7 +25,7 @@ model = dict(
     bbox_head=dict(
         type='RotatedDeformableDETRHead',
         num_query=300,
-        num_classes=80,
+        num_classes=15,
         in_channels=2048,
         sync_cls_avg_factor=True,
         as_two_stage=False,
@@ -86,9 +84,7 @@ model = dict(
     test_cfg=dict(max_per_img=100))
 
 data = dict(
-    samples_per_gpu=2,
-    workers_per_gpu=2,
-    train=dict(filter_empty_gt=False,))
+    samples_per_gpu=8, workers_per_gpu=2, train=dict(filter_empty_gt=False, ))
 # optimizer
 optimizer = dict(
     type='AdamW',
@@ -108,5 +104,5 @@ runner = dict(type='EpochBasedRunner', max_epochs=50)
 # NOTE: `auto_scale_lr` is for automatically scaling LR,
 # USER SHOULD NOT CHANGE ITS VALUES.
 # base_batch_size = (16 GPUs) x (2 samples per GPU)
-auto_scale_lr = dict(base_batch_size=32)
+auto_scale_lr = dict(base_batch_size=32, enable=True)
 checkpoint_config = dict(interval=1)

@@ -6,17 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import Linear, bias_init_with_prob, constant_init
 from mmcv.runner import force_fp32
-
 from mmdet.core import multi_apply
 from mmdet.models.utils.transformer import inverse_sigmoid
+
 from ..builder import ROTATED_HEADS
 from .rotated_detr_head import RotatedDETRHead
 
 
 @ROTATED_HEADS.register_module()
 class RotatedDeformableDETRHead(RotatedDETRHead):
-    """Head of RotatedDeformDETR: Deformable DETR: Deformable Transformers for End-to-
-    End Object Detection.
+    """Head of RotatedDeformDETR: Deformable DETR: Deformable Transformers for
+    End-to- End Object Detection.
 
     Code is modified from the `official github repo
     <https://github.com/fundamentalvision/Deformable-DETR>`_.
@@ -46,7 +46,7 @@ class RotatedDeformableDETRHead(RotatedDETRHead):
 
         super(RotatedDeformableDETRHead, self).__init__(
             *args, transformer=transformer, **kwargs)
-        
+
         self.reg_dim = 5
 
     def _init_layers(self):

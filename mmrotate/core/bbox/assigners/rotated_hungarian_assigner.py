@@ -1,12 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
+from mmdet.core.bbox.assigners import HungarianAssigner
+# from ..transforms import bbox_cxcywh_to_xyxy
+from mmdet.core.bbox.assigners.assign_result import AssignResult
+from mmdet.core.bbox.match_costs import build_match_cost
 from scipy.optimize import linear_sum_assignment
 
 from ..builder import BBOX_ASSIGNERS
-from mmdet.core.bbox.match_costs import build_match_cost
-# from ..transforms import bbox_cxcywh_to_xyxy
-from mmdet.core.bbox.assigners.assign_result import AssignResult
-from mmdet.core.bbox.assigners import HungarianAssigner
 
 
 @BBOX_ASSIGNERS.register_module()
@@ -106,8 +106,8 @@ class RotatedHungarianAssigner(HungarianAssigner):
             return AssignResult(
                 num_gts, assigned_gt_inds, None, labels=assigned_labels)
         img_h, img_w, _ = img_meta['img_shape']
-        factor = gt_bboxes.new_tensor([img_w, img_h, img_w,
-                                       img_h, 1]).unsqueeze(0)
+        factor = gt_bboxes.new_tensor([img_w, img_h, img_w, img_h,
+                                       1]).unsqueeze(0)
 
         # 2. compute the weighted costs
         # classification and bboxcost.
