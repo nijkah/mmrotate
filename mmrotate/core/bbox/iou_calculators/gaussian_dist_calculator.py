@@ -54,7 +54,33 @@ def xyxy_2_xy_sigma(xyxy):
     return xy, sigma
 
 
-def kld(bbox1, bbox2):
+def postprocess(distance, fun='log1p', tau=1.0):
+    """Convert distance to loss.
+
+    Args:
+        distance (torch.Tensor)
+        fun (str, optional): The function applied to distance.
+            Defaults to 'log1p'.
+        tau (float, optional): Defaults to 1.0.
+    Returns:
+        loss (torch.Tensor)
+    """
+    if fun == 'log1p':
+        distance = torch.log1p(distance)
+    elif fun == 'sqrt':
+        distance = torch.sqrt(distance.clamp(1e-7))
+    elif fun == 'none':
+        pass
+    else:
+        raise ValueError(f'Invalid non-linear function {fun}')
+
+    if tau >= 1.0:
+        return 1 - 1 / (tau + distance)
+    else:
+        return distance
+
+
+def kld(bbox1, bbox2, sqrt=True):
     """Kullback-Leibler Divergence Edited from 'kld_loss', 'kld_loss' must have
     the Tensors inputs as same shape and have an output as scalar by
     decorator(weighted_loss) for calculating loss.
@@ -92,7 +118,9 @@ def kld(bbox1, bbox2):
     Sigma_2_det_log = Sigma_2.det().log()
     whr_distance = whr_distance + 0.5 * (Sigma_1_det_log - Sigma_2_det_log)
     whr_distance = whr_distance - 1
-    distance = (xy_distance + whr_distance).clamp(0).sqrt()
+    distance = (xy_distance + whr_distance).clamp(0)
+    if sqrt:
+        distance = distance.sqrt()
     return distance.reshape(return_shape)
 
 
@@ -205,6 +233,65 @@ class GDOverlaps2D:
 
         overlaps = torch.exp(-1. * self.overlaps(bboxes1, bboxes2) /
                              self.constant)
+
+        if self.is_transpose:
+            overlaps = overlaps.transpose(-1, -2)
+        return overlaps
+
+    def __repr__(self):
+        """str: a string describing the module"""
+        repr_str = (
+            self.__class__.__name__ + f'('
+            f'overlaps={self.overlaps}, '
+            f'representation={self.representation}), '
+            f'extra_dim={self.extra_dim}, is_transpose={self.is_transpose}')
+        return repr_str
+
+
+@IOU_CALCULATORS.register_module
+class KLDOverlaps2D:
+    """2D Overlaps (e.g. GWD, KLD) Calculator."""
+
+    BAG_PREP = {
+        'rbox': xy_wh_r_2_xy_sigma,
+        'bbox': xyxy_2_xy_sigma,
+    }
+
+    def __init__(self, representation='rbox', extra_dim=1, is_transpose=False):
+        assert representation in self.BAG_PREP, (
+            f'{representation} not in {self.BAG_PREP.keys()}')
+        self.representation = self.BAG_PREP[representation]
+        self.extra_dim = extra_dim
+        self.is_transpose = is_transpose
+        self.is_normalize = is_normalize
+
+    def __call__(self, bboxes1, bboxes2):
+        """Calculate IoU between 2D bboxes.
+
+        Edited method from https://arxiv.org/abs/2110.13389
+            1. We do not normalize kld or gwd because
+                it will be used with ATSS.
+            2. Kullback-Leibler Divergence.
+        Args:
+            bboxes1 (Tensor): bboxes have shape (m, 4) in <x1, y1, x2, y2>
+                format, or shape (m, 5) in <cx, cy, w, h, r> format.
+            bboxes2 (Tensor): bboxes have shape (m, 4) in <x1, y1, x2, y2>
+                format, shape (m, 5) in <cx, cy, w, h, r> format, or be
+                empty.
+        Returns:
+            Tensor: shape (m, n) if self.is_transpose is False
+            else shape (n, m)
+        """
+        assert bboxes1.size(-1) in [0, 4 + self.extra_dim, 5 + self.extra_dim]
+        assert bboxes2.size(-1) in [0, 4 + self.extra_dim, 5 + self.extra_dim]
+
+        bboxes1 = bboxes1[..., :bboxes1.size(-1) - self.extra_dim]
+        bboxes2 = bboxes2[..., :bboxes2.size(-1) - self.extra_dim]
+
+        bboxes1 = self.representation(bboxes1)
+        bboxes2 = self.representation(bboxes2)
+
+        overlaps = postprocess(kld(bboxes1, bboxes2, sqrt=False))
 
         if self.is_transpose:
             overlaps = overlaps.transpose(-1, -2)

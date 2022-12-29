@@ -97,9 +97,10 @@ class RotatedSingleStageDetector(RotatedBaseDetector):
                 corresponds to each class.
         """
         x = self.extract_feat(img)
-        outs = self.bbox_head(x)
-        bbox_list = self.bbox_head.get_bboxes(
-            *outs, img_metas, rescale=rescale)
+        # outs = self.bbox_head(x)
+        # bbox_list = self.bbox_head.get_bboxes(
+        #     *outs, img_metas, rescale=rescale)
+        bbox_list = self.bbox_head.simple_test(x, img_metas, rescale=rescale)
 
         bbox_results = [
             rbbox2result(det_bboxes, det_labels, self.bbox_head.num_classes)
