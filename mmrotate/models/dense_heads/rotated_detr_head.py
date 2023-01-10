@@ -3,14 +3,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import Conv2d, Linear, build_activation_layer
-from mmcv.cnn.bricks.transformer import FFN, build_positional_encoding
+from mmcv.cnn import Conv2d, Linear
+from mmcv.cnn.bricks.transformer import FFN
 from mmcv.runner import force_fp32
-from mmdet.core import (bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh,
-                        build_assigner, build_sampler, multi_apply,
-                        reduce_mean)
+from mmdet.core import reduce_mean
 from mmdet.models.dense_heads import DETRHead
-from mmdet.models.utils import build_transformer
 
 from ..builder import ROTATED_HEADS
 
@@ -169,9 +166,9 @@ class RotatedDETRHead(DETRHead):
         factors = []
         for img_meta, bbox_pred in zip(img_metas, bbox_preds):
             img_h, img_w, _ = img_meta['img_shape']
-            factor = bbox_pred.new_tensor([img_w, img_h, img_w, img_h,
-                                           1]).unsqueeze(0).repeat(
-                                               bbox_pred.size(0), 1)
+            factor = bbox_pred.new_tensor(
+                [img_w, img_h, img_w, img_h,
+                 np.pi / 2]).unsqueeze(0).repeat(bbox_pred.size(0), 1)
             factors.append(factor)
         factors = torch.cat(factors, 0)
 
@@ -260,13 +257,12 @@ class RotatedDETRHead(DETRHead):
         # Thus the learning target should be normalized by the image size, also
         # the box format should be converted from defaultly x1y1x2y2 to cxcywh.
         factor = bbox_pred.new_tensor([img_w, img_h, img_w, img_h,
-                                       1]).unsqueeze(0)
+                                       np.pi / 2]).unsqueeze(0)
         # skip because empty pos_gt_bboxes has a shape of (0, 4)
         if gt_bboxes.numel() == 0:
             pos_gt_bboxes_targets = gt_bboxes
         else:
             pos_gt_bboxes_targets = sampling_result.pos_gt_bboxes / factor
-            # pos_gt_bboxes_targets = bbox_xyxy_to_cxcywh(pos_gt_bboxes_normalized)
         bbox_targets[pos_inds] = pos_gt_bboxes_targets
         return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
                 neg_inds)
@@ -403,11 +399,13 @@ class RotatedDETRHead(DETRHead):
         det_bboxes = bbox_pred
         det_bboxes[:, 0:4:2] = det_bboxes[:, 0:4:2] * img_shape[1]
         det_bboxes[:, 1:4:2] = det_bboxes[:, 1:4:2] * img_shape[0]
+        det_bboxes[:, 4] = det_bboxes[:, 4] * np.pi / 2
         det_bboxes[:, 0:4:2].clamp_(min=0, max=img_shape[1])
         det_bboxes[:, 1:4:2].clamp_(min=0, max=img_shape[0])
         if rescale:
             if scale_factor.shape[0] == 4:
-                scale_factor = np.append(scale_factor, 1.)
+                # angle should not be rescaled
+                scale_factor = np.append(scale_factor, 1)
             det_bboxes /= det_bboxes.new_tensor(scale_factor)
         det_bboxes = torch.cat((det_bboxes, scores.unsqueeze(1)), -1)
 

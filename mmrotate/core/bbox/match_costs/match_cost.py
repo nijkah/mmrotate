@@ -1,12 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
-import torch.nn.functional as F
-from mmdet.core.bbox.iou_calculators import bbox_overlaps
 from mmdet.core.bbox.match_costs.builder import MATCH_COST
-from mmdet.core.bbox.transforms import bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh
 
 from mmrotate.core.bbox.iou_calculators.gaussian_dist_calculator import (
-    gwd_overlaps, kld, xy_wh_r_2_xy_sigma)
+    gwd_overlaps, kld)
 
 
 @MATCH_COST.register_module()
@@ -78,7 +75,8 @@ class GWDCost:
         Returns:
             torch.Tensor: iou_cost value with weight
         """
-        from mmrotate.models.losses.gaussian_dist_loss import postprocess
+        from mmrotate.models.losses.gaussian_dist_loss import (
+            postprocess, xy_wh_r_2_xy_sigma)
 
         bboxes = xy_wh_r_2_xy_sigma(bboxes)
         gt_bboxes = xy_wh_r_2_xy_sigma(gt_bboxes)
@@ -119,12 +117,13 @@ class KLDCost:
         Returns:
             torch.Tensor: iou_cost value with weight
         """
-        from mmrotate.models.losses.gaussian_dist_loss import postprocess
+        from mmrotate.models.losses.gaussian_dist_loss import (
+            postprocess, xy_wh_r_2_xy_sigma)
 
         bboxes = xy_wh_r_2_xy_sigma(bboxes)
         gt_bboxes = xy_wh_r_2_xy_sigma(gt_bboxes)
         # overlaps: [num_bboxes, num_gt]
         dist = kld(bboxes, gt_bboxes, sqrt=False)
-        kld_cost = postprocess(dist)
+        kld_cost = postprocess(dist, fun='log1p', tau=1.0)
 
         return kld_cost * self.weight

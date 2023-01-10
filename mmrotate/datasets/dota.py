@@ -317,6 +317,7 @@ class DOTADataset(CustomDataset):
         assert len(results) == len(self), (
             f'The length of results is not equal to '
             f'the dataset len: {len(results)} != {len(self)}')
+
         if submission_dir is None:
             submission_dir = tempfile.TemporaryDirectory()
         else:
@@ -353,7 +354,8 @@ def _merge_func(info, CLASSES, iou_thr):
         else:
             try:
                 cls_dets = torch.from_numpy(dets[labels == i]).cuda()
-            except:  # noqa: E722
+            except Exception as e:  # noqa: E722
+                print(e)
                 cls_dets = torch.from_numpy(dets[labels == i])
             nms_dets, keep_inds = nms_rotated(cls_dets[:, :5], cls_dets[:, -1],
                                               iou_thr)

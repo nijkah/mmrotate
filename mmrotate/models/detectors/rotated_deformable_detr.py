@@ -12,20 +12,11 @@ class RotatedDeformableDETR(RotatedSingleStageDetector):
     r"""Implementation of `DETR: End-to-End Object Detection with
     Transformers <https://arxiv.org/pdf/2005.12872>`_"""
 
-    #def __init__(self,
-    #             backbone,
-    #             bbox_head,
-    #             train_cfg=None,
-    #             test_cfg=None,
-    #             pretrained=None,
-    #             init_cfg=None):
-    #    super(RotatedDeformableDETR, self).__init__(backbone, None, bbox_head, train_cfg,
-    #                               test_cfg, pretrained, init_cfg)
-
     # over-write `forward_dummy` because:
     # the forward of bbox_head requires img_metas
     def forward_dummy(self, img):
         """Used for computing network flops.
+
         See `mmdetection/tools/analysis_tools/get_flops.py`
         """
         warnings.warn('Warning! MultiheadAttention in DETR does not '
@@ -48,6 +39,7 @@ class RotatedDeformableDETR(RotatedSingleStageDetector):
     # torch and ONNX model, during the forward of bbox_head
     def onnx_export(self, img, img_metas):
         """Test function for exporting to ONNX, without test time augmentation.
+
         Args:
             img (torch.Tensor): input images.
             img_metas (list[dict]): List of image information.

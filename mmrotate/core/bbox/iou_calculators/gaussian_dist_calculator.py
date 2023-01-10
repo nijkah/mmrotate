@@ -5,82 +5,7 @@ import torch
 from .builder import IOU_CALCULATORS
 
 
-def xy_wh_r_2_xy_sigma(xywhr):
-    """Convert oriented bounding box to 2-D Gaussian distribution.
-
-    Args:
-        xywhr (torch.Tensor): rbboxes with shape (N, 5).
-
-    Returns:
-        xy (torch.Tensor): center point of 2-D Gaussian distribution
-            with shape (N, 2).
-        sigma (torch.Tensor): covariance matrix of 2-D Gaussian distribution
-            with shape (N, 2, 2).
-    """
-    _shape = xywhr.shape
-    assert _shape[-1] == 5
-    xy = xywhr[..., :2]
-    wh = xywhr[..., 2:4].clamp(min=1e-7, max=1e7).reshape(-1, 2)
-    r = xywhr[..., 4]
-    cos_r = torch.cos(r)
-    sin_r = torch.sin(r)
-    R = torch.stack((cos_r, -sin_r, sin_r, cos_r), dim=-1).reshape(-1, 2, 2)
-    S = 0.5 * torch.diag_embed(wh)
-
-    sigma = R.bmm(S.square()).bmm(R.permute(0, 2,
-                                            1)).reshape(_shape[:-1] + (2, 2))
-
-    return xy, sigma
-
-
-def xyxy_2_xy_sigma(xyxy):
-    """Convert horizontal bounding box to 2-D Gaussian distribution.
-
-    Args:
-        bbox (torch.Tensor): bboxes(xyxy) with shape (N, 4).
-    Returns:
-        xy (torch.Tensor): center point of 2-D Gaussian distribution
-            with shape (N, 2).
-        sigma (torch.Tensor): covariance matrix of 2-D Gaussian distribution
-            with shape (N, 2, 2).
-    """
-    _shape = xyxy.shape
-    assert _shape[-1] == 4
-    wh = torch.stack(
-        [xyxy[..., 2] - xyxy[..., 0], xyxy[..., 3] - xyxy[..., 1]], dim=-1)
-    xy = xyxy[..., :2] + wh / 2
-    sigma = (0.5 * torch.diag_embed(wh)).square()
-
-    return xy, sigma
-
-
-def postprocess(distance, fun='log1p', tau=1.0):
-    """Convert distance to loss.
-
-    Args:
-        distance (torch.Tensor)
-        fun (str, optional): The function applied to distance.
-            Defaults to 'log1p'.
-        tau (float, optional): Defaults to 1.0.
-    Returns:
-        loss (torch.Tensor)
-    """
-    if fun == 'log1p':
-        distance = torch.log1p(distance)
-    elif fun == 'sqrt':
-        distance = torch.sqrt(distance.clamp(1e-7))
-    elif fun == 'none':
-        pass
-    else:
-        raise ValueError(f'Invalid non-linear function {fun}')
-
-    if tau >= 1.0:
-        return 1 - 1 / (tau + distance)
-    else:
-        return distance
-
-
-def kld(bbox1, bbox2, sqrt=True):
+def kld(bbox1, bbox2, alpha=1., sqrt=True):
     """Kullback-Leibler Divergence Edited from 'kld_loss', 'kld_loss' must have
     the Tensors inputs as same shape and have an output as scalar by
     decorator(weighted_loss) for calculating loss.
@@ -118,7 +43,8 @@ def kld(bbox1, bbox2, sqrt=True):
     Sigma_2_det_log = Sigma_2.det().log()
     whr_distance = whr_distance + 0.5 * (Sigma_1_det_log - Sigma_2_det_log)
     whr_distance = whr_distance - 1
-    distance = (xy_distance + whr_distance).clamp(0)
+    distance = (xy_distance / (alpha * alpha) + whr_distance)
+
     if sqrt:
         distance = distance.sqrt()
     return distance.reshape(return_shape)
@@ -180,24 +106,16 @@ class GDOverlaps2D:
         'gwd': gwd_overlaps,
         'kld_sym': kld_sym_overlaps,
     }
-    BAG_PREP = {
-        'rbox': xy_wh_r_2_xy_sigma,
-        'bbox': xyxy_2_xy_sigma,
-    }
 
     def __init__(self,
                  mode='gwd',
-                 representation='rbox',
                  extra_dim=1,
                  is_transpose=False,
                  is_normalize=True,
                  constant=12.7):
         assert mode in self.BAG_GD_OVERLAPS, (
             f'{mode} not in {self.BAG_GD_OVERLAPS.keys()}')
-        assert representation in self.BAG_PREP, (
-            f'{representation} not in {self.BAG_PREP.keys()}')
         self.overlaps = self.BAG_GD_OVERLAPS[mode]
-        self.representation = self.BAG_PREP[representation]
         self.extra_dim = extra_dim
         self.is_transpose = is_transpose
         self.is_normalize = is_normalize
@@ -224,12 +142,14 @@ class GDOverlaps2D:
         """
         assert bboxes1.size(-1) in [0, 4 + self.extra_dim, 5 + self.extra_dim]
         assert bboxes2.size(-1) in [0, 4 + self.extra_dim, 5 + self.extra_dim]
+        from mmrotate.models.losses.gaussian_dist_loss import (
+            xy_wh_r_2_xy_sigma)
 
         bboxes1 = bboxes1[..., :bboxes1.size(-1) - self.extra_dim]
         bboxes2 = bboxes2[..., :bboxes2.size(-1) - self.extra_dim]
 
-        bboxes1 = self.representation(bboxes1)
-        bboxes2 = self.representation(bboxes2)
+        bboxes1 = xy_wh_r_2_xy_sigma(bboxes1)
+        bboxes2 = xy_wh_r_2_xy_sigma(bboxes2)
 
         overlaps = torch.exp(-1. * self.overlaps(bboxes1, bboxes2) /
                              self.constant)
@@ -252,18 +172,9 @@ class GDOverlaps2D:
 class KLDOverlaps2D:
     """2D Overlaps (e.g. GWD, KLD) Calculator."""
 
-    BAG_PREP = {
-        'rbox': xy_wh_r_2_xy_sigma,
-        'bbox': xyxy_2_xy_sigma,
-    }
-
-    def __init__(self, representation='rbox', extra_dim=1, is_transpose=False):
-        assert representation in self.BAG_PREP, (
-            f'{representation} not in {self.BAG_PREP.keys()}')
-        self.representation = self.BAG_PREP[representation]
+    def __init__(self, extra_dim=1, is_transpose=False):
         self.extra_dim = extra_dim
         self.is_transpose = is_transpose
-        self.is_normalize = is_normalize
 
     def __call__(self, bboxes1, bboxes2):
         """Calculate IoU between 2D bboxes.
@@ -284,14 +195,17 @@ class KLDOverlaps2D:
         """
         assert bboxes1.size(-1) in [0, 4 + self.extra_dim, 5 + self.extra_dim]
         assert bboxes2.size(-1) in [0, 4 + self.extra_dim, 5 + self.extra_dim]
+        from mmrotate.models.losses.gaussian_dist_loss import (
+            xy_wh_r_2_xy_sigma, postprocess)
 
         bboxes1 = bboxes1[..., :bboxes1.size(-1) - self.extra_dim]
         bboxes2 = bboxes2[..., :bboxes2.size(-1) - self.extra_dim]
 
-        bboxes1 = self.representation(bboxes1)
-        bboxes2 = self.representation(bboxes2)
+        bboxes1 = xy_wh_r_2_xy_sigma(bboxes1)
+        bboxes2 = xy_wh_r_2_xy_sigma(bboxes2)
 
-        overlaps = postprocess(kld(bboxes1, bboxes2, sqrt=False))
+        overlaps = postprocess(
+            kld(bboxes1, bboxes2, sqrt=False), fun='log1p', tau=1.0)
 
         if self.is_transpose:
             overlaps = overlaps.transpose(-1, -2)

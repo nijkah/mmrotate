@@ -4,7 +4,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import Linear, bias_init_with_prob, constant_init
+from mmcv.cnn import Linear
 from mmcv.runner import force_fp32
 from mmdet.core import multi_apply
 from mmdet.models.utils.transformer import inverse_sigmoid
@@ -149,8 +149,8 @@ class RotatedDeformableDETRHead(RotatedDETRHead):
             reference = inverse_sigmoid(reference)
             outputs_class = self.cls_branches[lvl](hs[lvl])
             tmp = self.reg_branches[lvl](hs[lvl])
-            if reference.shape[-1] == 5:
-                tmp += reference
+            if reference.shape[-1] == 4:
+                tmp[..., :4] = tmp[..., :4] + reference
             elif reference.shape[-1] == 2:
                 tmp[..., :2] += reference
             else:

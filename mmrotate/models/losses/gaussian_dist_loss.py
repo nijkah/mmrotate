@@ -193,9 +193,10 @@ def kld_loss(pred, target, fun='log1p', tau=1.0, alpha=1.0, sqrt=True):
     Sigma_t_det_log = Sigma_t.det().log()
     whr_distance = whr_distance + 0.5 * (Sigma_p_det_log - Sigma_t_det_log)
     whr_distance = whr_distance - 1
-    distance = (xy_distance / (alpha * alpha) + whr_distance)
+    distance = (xy_distance / (alpha * alpha) + whr_distance).clamp(1e-7)
+
     if sqrt:
-        distance = distance.clamp(1e-7).sqrt()
+        distance = distance.sqrt()
 
     distance = distance.reshape(_shape[:-1])
 
